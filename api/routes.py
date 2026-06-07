@@ -1,8 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from langchain_core.messages import HumanMessage
 
 from api.schemas import HealthResponse, ChatRequest, ChatResponse, UploadResponse
+from agents.graph import compiled_graph
 from core.config import settings
-from services import llm_service
 
 router = APIRouter()
 
@@ -15,16 +16,28 @@ async def get_health():
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
 async def post_chat(payload: ChatRequest):
     try:
-        llm_out = await llm_service.get_response(message=payload.message)
+        input_message = HumanMessage(content=payload.message)
+        initial_state: dict = {
+            "messages": [input_message],
+            "session_id": payload.session_id,
+            "current_agent": "initialization",
+            "documents_loaded": False,
+            "audit_findings": [],
+            "user_confirmed": False,
+        }
+
+        output_state = await compiled_graph.ainvoke(initial_state)
+        final_message = output_state["messages"][-1]
+
         return ChatResponse(
-            response=llm_out,
+            response=str(final_message.content),
             session_id=payload.session_id,
-            agent_used=f"direct_llm_{settings.LLM_PROVIDER}",
+            agent_used=output_state.get("current_agent", "unknown_agent"),
         )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
+            detail=f"LangGraph Runtime Execution Error: {str(exc)}",
         )
 
 
