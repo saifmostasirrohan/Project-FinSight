@@ -5,8 +5,7 @@ from langchain_core.messages import HumanMessage
 from api.schemas import HealthResponse, ChatRequest, ChatResponse
 from agents.graph import compiled_graph
 from core.config import settings
-from services.database import SupabaseManager
-from services.parser import DocumentParser
+from services.ingestion import IngestionCoordinator
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -63,7 +62,7 @@ async def post_upload(file: UploadFile = File(...), session_id: str = "default_s
         content_type=file.content_type,
     )
 
-    allowed_types = {"application/pdf": "PDF", "text/csv": "CSV"}
+    allowed_types = {"application/pdf", "text/csv"}
     if file.content_type not in allowed_types:
         logger.warning(
             "document_upload_rejected_invalid_type",
@@ -76,43 +75,16 @@ async def post_upload(file: UploadFile = File(...), session_id: str = "default_s
 
     try:
         file_bytes = await file.read()
-
-        if file.content_type == "application/pdf":
-            parsed_blocks = DocumentParser.parse_pdf(file_bytes)
-        else:
-            parsed_blocks = DocumentParser.parse_csv(file_bytes)
-
-        supabase = SupabaseManager.get_client()
-        db_record = {
-            "session_id": session_id,
-            "filename": file.filename or "unknown_file",
-            "file_type": allowed_types[file.content_type],
-            "total_chunks": len(parsed_blocks),
-        }
-
-        db_res = supabase.table("documents").insert(db_record).execute()
-        if not db_res.data:
-            raise RuntimeError(
-                "Cloud ledger registration failure occurred during insertion phase."
-            )
-
-        generated_doc_id = db_res.data[0]["id"]
-        logger.info(
-            "document_upload_extraction_complete",
-            document_id=generated_doc_id,
-            parsed_elements_count=len(parsed_blocks),
+        result = await IngestionCoordinator.ingest_file(
+            file_bytes=file_bytes,
+            filename=file.filename or "unknown_file",
+            content_type=file.content_type,
+            session_id=session_id,
         )
-
-        return {
-            "document_id": generated_doc_id,
-            "filename": file.filename,
-            "parsed_elements_count": len(parsed_blocks),
-            "status": "extraction_complete_ledger_registered",
-            "preview_sample": parsed_blocks[:2] if parsed_blocks else [],
-        }
+        return result
     except Exception as exc:
         logger.error("document_processing_pipeline_failed", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Document parsing error occurred: {str(exc)}",
+            detail=f"Ingestion pipeline failure occurred: {str(exc)}",
         )
