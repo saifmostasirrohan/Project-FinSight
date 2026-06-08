@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, TypedDict
+from typing import Annotated, Any, Dict, List, TypedDict
 
 from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 
 class FinSightState(TypedDict):
@@ -9,7 +10,7 @@ class FinSightState(TypedDict):
     Tracks context vectors throughout multi-agent state execution.
     """
 
-    messages: List[BaseMessage]
+    messages: Annotated[List[BaseMessage], add_messages]
     session_id: str
     current_agent: str
     documents_loaded: bool

@@ -6,7 +6,6 @@ from api.schemas import HealthResponse, ChatRequest, ChatResponse
 from agents.graph import compiled_graph
 from core.config import settings
 from services.ingestion import IngestionCoordinator
-from services.search import FinancialRetriever
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -88,32 +87,4 @@ async def post_upload(file: UploadFile = File(...), session_id: str = "default_s
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Ingestion pipeline failure occurred: {str(exc)}",
-        )
-
-
-@router.get("/search", status_code=status.HTTP_200_OK)
-async def get_search(query: str, session_id: str):
-    structlog.contextvars.bind_contextvars(session_id=session_id)
-    if not query.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Query parameter string cannot be void or whitespace.",
-        )
-
-    try:
-        matched_context = await FinancialRetriever.semantic_search(
-            query=query,
-            session_id=session_id,
-            top_k=3,
-        )
-        return {
-            "query": query,
-            "session_id": session_id,
-            "results_count": len(matched_context),
-            "context_blocks": matched_context,
-        }
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
         )
