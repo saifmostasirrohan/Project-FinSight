@@ -100,8 +100,8 @@ class IngestionPipeline:
         if provider == "huggingface" and settings.HF_API_KEY:
             try:
                 api_url = (
-                    "https://api-inference.huggingface.co/models/"
-                    "sentence-transformers/all-MiniLM-L6-v2"
+                    "https://router.huggingface.co/hf-inference/models/"
+                    "sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
                 )
                 headers = {"Authorization": f"Bearer {settings.HF_API_KEY}"}
 
