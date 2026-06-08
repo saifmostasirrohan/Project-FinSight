@@ -1,60 +1,100 @@
 import structlog
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
 
+from agents.router import router_node
 from agents.state import FinSightState
-from agents.tools import search_documents
-from core.prompts import SYSTEM_PROMPTS
-from services.llm_service import LLMEngineFactory
 
 logger = structlog.get_logger()
 
-active_tools = [search_documents]
-tool_node = ToolNode(active_tools)
+
+async def retrieval_placeholder(state: FinSightState) -> dict:
+    logger.info("placeholder_node_hit", node="retrieval")
+    return {"current_agent": "retrieval_agent"}
 
 
-async def agent_core_node(state: FinSightState) -> dict:
-    """
-    Bind retrieval tools into the active LLM and route reasoning through
-    grounded document context before producing final answers.
-    """
-    logger.info("entering_graph_agent_core_reasoning_node")
+async def analysis_placeholder(state: FinSightState) -> dict:
+    logger.info("placeholder_node_hit", node="analysis")
+    return {"current_agent": "analysis_agent"}
 
-    raw_model = LLMEngineFactory.get_model()
-    model_with_tools = raw_model.bind_tools(active_tools)
 
-    session_id = state["session_id"]
-    system_instruction = SystemMessage(
+async def compliance_placeholder(state: FinSightState) -> dict:
+    logger.info("placeholder_node_hit", node="compliance")
+    return {"current_agent": "compliance_agent"}
+
+
+async def action_placeholder(state: FinSightState) -> dict:
+    logger.info("placeholder_node_hit", node="action")
+    return {"current_agent": "action_agent"}
+
+
+async def chat_placeholder(state: FinSightState) -> dict:
+    logger.info("placeholder_node_hit", node="chat")
+    return {"current_agent": "chat_agent"}
+
+
+async def response_placeholder(state: FinSightState) -> dict:
+    """Format route validation state into a user-visible response."""
+    logger.info("entering_response_agent_egress_formatting")
+
+    active_intent = state.get("intent", "UNKNOWN")
+    active_agent = state.get("current_agent", "unknown")
+
+    msg_out = AIMessage(
         content=(
-            SYSTEM_PROMPTS["rag_grounding_persona"]
-            + "\n\n"
-            + f"ACTIVE_SESSION_ID: {session_id}\n"
-            + "When invoking search_documents, pass this exact ACTIVE_SESSION_ID as the session_id argument."
+            "FinSight Routing Validation Successful. "
+            f"Path Routed via: Router -> {active_agent} -> Response Node. "
+            f"Intent Category confirmed as: '{active_intent}'."
         )
     )
+    return {"messages": [msg_out]}
 
-    full_history = [system_instruction] + state["messages"]
-    response = await model_with_tools.ainvoke(full_history)
 
-    return {
-        "messages": [response],
-        "current_agent": "chat_agent",
+def route_by_intent(state: FinSightState) -> str:
+    """Evaluate state intent values to drive conditional routing paths."""
+    intent_token = state.get("intent", "CHAT")
+    mapping = {
+        "SEARCH": "retrieval_node",
+        "ANALYZE": "analysis_node",
+        "COMPLY": "compliance_node",
+        "ACTION": "action_node",
+        "CHAT": "chat_node",
     }
+    target_node = mapping.get(intent_token, "chat_node")
+    logger.info("graph_routing_decision_dispatched", route_target=target_node)
+    return target_node
 
 
 workflow = StateGraph(FinSightState)
-workflow.add_node("agent_core", agent_core_node)
-workflow.add_node("execute_tools", tool_node)
-workflow.set_entry_point("agent_core")
+
+workflow.add_node("router_node", router_node)
+workflow.add_node("retrieval_node", retrieval_placeholder)
+workflow.add_node("analysis_node", analysis_placeholder)
+workflow.add_node("compliance_node", compliance_placeholder)
+workflow.add_node("action_node", action_placeholder)
+workflow.add_node("chat_node", chat_placeholder)
+workflow.add_node("response_node", response_placeholder)
+
+workflow.set_entry_point("router_node")
+
 workflow.add_conditional_edges(
-    "agent_core",
-    tools_condition,
+    "router_node",
+    route_by_intent,
     {
-        "tools": "execute_tools",
-        "__end__": END,
+        "retrieval_node": "retrieval_node",
+        "analysis_node": "analysis_node",
+        "compliance_node": "compliance_node",
+        "action_node": "action_node",
+        "chat_node": "chat_node",
     },
 )
-workflow.add_edge("execute_tools", "agent_core")
+
+workflow.add_edge("retrieval_node", "response_node")
+workflow.add_edge("analysis_node", "response_node")
+workflow.add_edge("compliance_node", "response_node")
+workflow.add_edge("action_node", "response_node")
+workflow.add_edge("chat_node", "response_node")
+
+workflow.add_edge("response_node", END)
 
 compiled_graph = workflow.compile()

@@ -1,18 +1,20 @@
-from typing import Annotated, Any, Dict, List, TypedDict
+from typing import Any, Dict, List, TypedDict
 
 from langchain_core.messages import BaseMessage
-from langgraph.graph.message import add_messages
 
 
 class FinSightState(TypedDict):
     """
-    Unified state channel payload definition matrix.
-    Tracks context vectors throughout multi-agent state execution.
+    Unified state channel tracking layout matrix for Project FinSight.
+    Manages multi-agent execution context variables between node handoffs.
     """
 
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: List[BaseMessage]
     session_id: str
     current_agent: str
     documents_loaded: bool
+    retrieved_chunks: List[Dict[str, Any]]
     audit_findings: List[Dict[str, Any]]
+    compliance_violations: List[Dict[str, Any]]
     user_confirmed: bool
+    intent: str

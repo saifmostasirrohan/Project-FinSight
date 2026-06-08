@@ -28,8 +28,11 @@ async def post_chat(payload: ChatRequest):
             "session_id": payload.session_id,
             "current_agent": "initialization",
             "documents_loaded": False,
+            "retrieved_chunks": [],
             "audit_findings": [],
+            "compliance_violations": [],
             "user_confirmed": False,
+            "intent": "CHAT",
         }
 
         output_state = await compiled_graph.ainvoke(initial_state)
