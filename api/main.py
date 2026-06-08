@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router as api_router
 from core.config import settings
 from core.logging import configure_logging
+from services.database import SupabaseManager, verify_db_lifecycle
 
 configure_logging()
 logger = structlog.get_logger()
@@ -59,9 +60,20 @@ async def append_telemetry_tracing_context(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info("executing_infrastructure_dependency_probes")
+
+    SupabaseManager.get_client()
+    db_alive = await verify_db_lifecycle()
+    if not db_alive:
+        logger.critical("database_probe_failed_halting_server")
+        raise SystemExit(
+            "Fatal Infrastructure Error: Cloud database connection sequence is non-responsive."
+        )
+
     logger.info(
         "system_boot_sequence_complete",
         project_name=settings.PROJECT_NAME,
+        database_status="CONNECTED_AND_VERIFIED",
         env=settings.APP_ENV,
         version=settings.VERSION,
     )
