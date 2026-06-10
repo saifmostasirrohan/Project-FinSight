@@ -2,27 +2,12 @@ import structlog
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
 
+from agents.analysis import analysis_node
 from agents.retrieval import retrieval_node
 from agents.router import router_node
 from agents.state import FinSightState
 
 logger = structlog.get_logger()
-
-
-async def analysis_placeholder(state: FinSightState) -> dict:
-    logger.info("placeholder_node_hit", node="analysis")
-    return {
-        "messages": [
-            AIMessage(
-                content=(
-                    "FinSight Routing Validation Successful. Path Routed via: "
-                    "Router -> analysis_agent -> Response Node. Intent Category "
-                    "confirmed as: 'ANALYZE'."
-                )
-            )
-        ],
-        "current_agent": "analysis_agent",
-    }
 
 
 async def compliance_placeholder(state: FinSightState) -> dict:
@@ -98,7 +83,7 @@ workflow = StateGraph(FinSightState)
 
 workflow.add_node("router_node", router_node)
 workflow.add_node("retrieval_node", retrieval_node)
-workflow.add_node("analysis_node", analysis_placeholder)
+workflow.add_node("analysis_node", analysis_node)
 workflow.add_node("compliance_node", compliance_placeholder)
 workflow.add_node("action_node", action_placeholder)
 workflow.add_node("chat_node", chat_placeholder)

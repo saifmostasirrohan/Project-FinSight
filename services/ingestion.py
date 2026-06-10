@@ -77,7 +77,10 @@ class IngestionCoordinator:
             "dispatching_bulk_chunk_vector_insert_to_supabase",
             records_count=len(final_insert_payload),
         )
-        supabase.table("chunks").insert(final_insert_payload).execute()
+        supabase.table("chunks").upsert(
+            final_insert_payload,
+            on_conflict="session_id,content_hash",
+        ).execute()
         supabase.table("documents").update(
             {"total_chunks": len(final_insert_payload)}
         ).eq("id", document_id).execute()
