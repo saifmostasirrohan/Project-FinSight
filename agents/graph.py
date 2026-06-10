@@ -2,44 +2,14 @@ import structlog
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
 
+from agents.action import action_node
 from agents.analysis import analysis_node
+from agents.compliance import compliance_node
 from agents.retrieval import retrieval_node
 from agents.router import router_node
 from agents.state import FinSightState
 
 logger = structlog.get_logger()
-
-
-async def compliance_placeholder(state: FinSightState) -> dict:
-    logger.info("placeholder_node_hit", node="compliance")
-    return {
-        "messages": [
-            AIMessage(
-                content=(
-                    "FinSight Routing Validation Successful. Path Routed via: "
-                    "Router -> compliance_agent -> Response Node. Intent Category "
-                    "confirmed as: 'COMPLY'."
-                )
-            )
-        ],
-        "current_agent": "compliance_agent",
-    }
-
-
-async def action_placeholder(state: FinSightState) -> dict:
-    logger.info("placeholder_node_hit", node="action")
-    return {
-        "messages": [
-            AIMessage(
-                content=(
-                    "FinSight Routing Validation Successful. Path Routed via: "
-                    "Router -> action_agent -> Response Node. Intent Category "
-                    "confirmed as: 'ACTION'."
-                )
-            )
-        ],
-        "current_agent": "action_agent",
-    }
 
 
 async def chat_placeholder(state: FinSightState) -> dict:
@@ -84,8 +54,8 @@ workflow = StateGraph(FinSightState)
 workflow.add_node("router_node", router_node)
 workflow.add_node("retrieval_node", retrieval_node)
 workflow.add_node("analysis_node", analysis_node)
-workflow.add_node("compliance_node", compliance_placeholder)
-workflow.add_node("action_node", action_placeholder)
+workflow.add_node("compliance_node", compliance_node)
+workflow.add_node("action_node", action_node)
 workflow.add_node("chat_node", chat_placeholder)
 workflow.add_node("response_node", response_placeholder)
 
